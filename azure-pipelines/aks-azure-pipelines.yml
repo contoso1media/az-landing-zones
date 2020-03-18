@@ -1,0 +1,147 @@
+trigger:
+- master
+
+variables:
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+  demorg: 'melon-cicd-rg'
+  subscription : 'melonserviceconn'
+
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+      
+    steps:
+    - task: AzureCLI@1
+      displayName: 'Azure CLI '
+      inputs:
+        azureSubscription: $(subscription)
+        scriptLocation: inlineScript
+        inlineScript: 'az group create --location northeurope --name $(demorg)'
+
+    
+    - task: CopyFiles@2
+      displayName: 'Copy Files to: $(Build.ArtifactStagingDirectory)'
+      inputs:
+        SourceFolder: '$(system.defaultworkingdirectory)'
+        Contents: | 
+        InfraDeploy/*
+     
+      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+    - task: PublishPipelineArtifact@0
+      displayName: 'PublishPipelineArtifact: drop'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)'
+
+- stage: Release
+  displayName: Release
+  dependsOn: Build
+  condition: succeeded('Build')
+  jobs:
+  - deployment: Dev
+    displayName: Dev
+    environment: 'development'
+    pool: 
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadPipelineArtifact@1
+            displayName: 'Download Pipeline Artifact'
+            inputs:
+              buildType: 'current'
+
+          - task: AzureCLI@1
+            displayName: 'Azure CLI Terra Backend'
+            inputs:
+              azureSubscription: $(subscription)
+              scriptLocation: inlineScript
+              inlineScript: |
+              call az storage account create --name $(terraformstorageaccount) --resource-group $(terraformstoragerg) --location westeurope --sku Standard_LRS
+
+          - task: petergroenewegen.PeterGroenewegen-Xpirit-Vsts-Release-Terraform.Xpirit-Vsts-Release-Terraform.Terraform@2
+            displayName: 'Terraform init'
+            inputs:
+              TemplatePath: ./
+              Arguments: init
+              PlanPath: ./
+              InstallTerraform: true
+              UseAzureSub: true
+              ConnectedServiceNameARM: $(subscription)
+              ManageState: true
+              SpecifyStorageAccount: true
+              StorageAccountResourceGroup: '$(terraformstoragerg)'
+              StorageAccountRM: '$(terraformstorageaccount)'
+              StorageContainerName: terraform
+              InitArguments: '-input=false'
+
+           - task: petergroenewegen.PeterGroenewegen-Xpirit-Vsts-Release-Terraform.Xpirit-Vsts-Release-Terraform.Terraform@2
+              displayName: 'Terraform plan'
+              inputs:
+                TemplatePath: '$(System.DefaultWorkingDirectory)/_dataanalyticsandbox-CI/drop/InfraDeploy'
+                Arguments: plan
+                InstallTerraform: true
+                UseAzureSub: true
+                ConnectedServiceNameARM: $(subscription)
+                ManageState: true
+                SpecifyStorageAccount: true
+                StorageAccountResourceGroup: '$(terraformstoragerg)'
+                StorageAccountRM: '$(terraformstorageaccount)'
+                StorageContainerName: terraform
+
+             - task: petergroenewegen.PeterGroenewegen-Xpirit-Vsts-Release-Terraform.Xpirit-Vsts-Release-Terraform.Terraform@2
+                displayName: 'Terraform apply -auto-approve'
+                inputs:
+                  TemplatePath: '$(System.DefaultWorkingDirectory)/_dataanalyticsandbox-CI/drop/InfraDeploy'
+                  Arguments: 'apply -auto-approve'
+                  InstallTerraform: true
+                  UseAzureSub: true
+                  ConnectedServiceNameARM: $(subscription)
+                  ManageState: true
+                  SpecifyStorageAccount: true
+                  StorageAccountResourceGroup: '$(terraformstoragerg)'
+                  StorageAccountRM: '$(terraformstorageaccount)'
+                  StorageContainerName: terraform
+
+              - task: Kubernetes@1
+                displayName: 'Create Deployments & Services in AKS'
+                inputs:
+                  connectionType: 'Azure Resource Manager'
+                  azureSubscriptionEndpoint:  $(subscription)
+                  azureResourceGroup: 'gdp-sandbox-tf-rg'
+                  kubernetesCluster: 'gdp-sandbox-k8s'
+                  command: apply
+                  useConfigurationFile: true
+                  configuration: '$(System.DefaultWorkingDirectory)/_dataanalyticsandbox-CI/drop/AppDeploy/app-aks.yaml'
+                  versionSpec: 1.7.0
+       
+            - task: AzurePowerShell@3
+              displayName: 'Call logic app validation : POST'
+              inputs:
+                azureSubscription: $(subscription)
+                ScriptType: InlineScript
+                Inline: |
+                $Url = "https://prod-30.westeurope.logic.azure.com:443/workflows/d2fbdffa02a040fd9fa9f82db265937e/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=P7Ny1GnlFsfBZN7wKiVk3zvN2zYMLLE_DiL9gC940EI"
+                
+                $Body = @{
+                    resource_group = "gdp-sandbox-tf-rg"
+                    status = "successed"
+                    type = "AKS"
+                    build_number =  $env:BUILD_BUILDNUMBER
+                }
+                
+                $json = $Body | ConvertTo-Json
+                
+                Invoke-RestMethod -Method 'Post' -Uri $url -Body $json -ContentType 'application/json'
+                preferredAzurePowerShellVersion: 6.7.0
+
+

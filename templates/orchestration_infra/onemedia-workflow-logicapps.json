@@ -1,0 +1,391 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "azure_subscription_id": {
+            "defaultValue": "9b1b3746-eb27-417d-804c-a00646520a34",
+            "type": "String"
+        },
+        "azure_deployment_region": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "String"
+        },
+        "workflows_ms_onemedia_logicapp_name": {
+            "defaultValue": "ms-onemedia-logicapp",
+            "type": "String"
+        },
+        "connections_documentdb_externalid": {
+            "defaultValue": "/subscriptions/9b1b3746-eb27-417d-804c-a00646520a34/providers/Microsoft.Web/locations/westeurope/managedApis/documentdb",
+            "type": "String"
+        },
+        "connections_office365_externalid": {
+            "defaultValue": "/subscriptions/9b1b3746-eb27-417d-804c-a00646520a34/providers/Microsoft.Web/locations/westeurope/managedApis/office365",
+            "type": "String"
+        },
+        "connections_visualstudioteamservices_1_externalid": {
+            "defaultValue": "/subscriptions/9b1b3746-eb27-417d-804c-a00646520a34/providers/Microsoft.Web/locations/westeurope/managedApis/visualstudioteamservices",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_ms_onemedia_logicapp_name')]",
+            "location": "westeurope",
+            "identity": {
+               "type": "SystemAssigned"
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "actions": {
+                        "Create_or_update_request_status": {
+                            "inputs": {
+                                "body": {
+                                    "comment": " @{body('Parse_JSON')?['comment']}",
+                                    "email": " @{body('Parse_JSON')?['email']}",
+                                    "id": "@{body('Parse_JSON')?['id']}",
+                                    "image": " @{body('Parse_JSON')?['image']}",
+                                    "lifetime": "@{body('Parse_JSON')?['lifetime']}",
+                                    "location": "@{body('Parse_JSON')?['location']}",
+                                    "name": " @{body('Parse_JSON')?['image']}",
+                                    "requesttime": "@{body('Parse_JSON')?['requesttime']}"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{body('Parse_JSON')?['id']}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "/dbs/@{encodeURIComponent('statedb')}/colls/@{encodeURIComponent('infrastates')}/docs"
+                            },
+                            "runAfter": {
+                                "Parse_JSON": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection"
+                        },
+                        "Parse_JSON": {
+                            "inputs": {
+                                "content": "@triggerBody()",
+                                "schema": {
+                                    "properties": {
+                                        "comment": {
+                                            "type": "string"
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "image": {
+                                            "type": "string"
+                                        },
+                                        "lifetime": {
+                                            "type": "string"
+                                        },
+                                        "location": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "requesttime": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "ParseJson"
+                        },
+                        "Send_approval_email": {
+                            "inputs": {
+                                "body": {
+                                    "Message": {
+                                        "Importance": "Normal",
+                                        "Options": "Approve, Reject",
+                                        "Subject": "<p>[ OneMedia Self-Service ] Request Approval deployment Request</p>",
+                                        "To": "Vincent.Rouet@microsoft.com; melony.qin@microsoft.com"
+                                    },
+                                    "NotificationUrl": "@{listCallbackUrl()}"
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['office365']['connectionId']"
+                                    }
+                                },
+                                "path": "/approvalmail/$subscriptions"
+                            },
+                            "runAfter": {
+                                "Create_or_update_request_status": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnectionWebhook"
+                        },
+                        "Switch_:_whether_if_the_request_will_be_approved": {
+                            "cases": {
+                                "Case_-_Approved": {
+                                    "actions": {
+                                        "Switch_:_choose_image_path": {
+                                            "cases": {
+                                                "Case_-_SQLDatabase": {
+                                                    "actions": {
+                                                        "Queue_a_new_build": {
+                                                            "inputs": {
+                                                                "host": {
+                                                                    "connection": {
+                                                                        "name": "@parameters('$connections')['visualstudioteamservices']['connectionId']"
+                                                                    }
+                                                                },
+                                                                "method": "post",
+                                                                "path": "/@{encodeURIComponent('caf_app_innovate_showcase')}/_apis/build/builds",
+                                                                "queries": {
+                                                                    "account": "contoso1media",
+                                                                    "buildDefId": "15"
+                                                                }
+                                                            },
+                                                            "runAfter": {},
+                                                            "type": "ApiConnection"
+                                                        },
+                                                        "Replace_a_document": {
+                                                            "inputs": {
+                                                                "body": {
+                                                                    "buildnumber": "@{body('Queue_a_new_build')?['buildNumber']}",
+                                                                    "comment": " @{body('Parse_JSON')?['comment']}",
+                                                                    "email": " @{body('Parse_JSON')?['email']}",
+                                                                    "id": "@{body('Parse_JSON')?['id']}",
+                                                                    "image": " @{body('Parse_JSON')?['image']}",
+                                                                    "lifetime": "@{body('Parse_JSON')?['lifetime']}",
+                                                                    "location": "@{body('Parse_JSON')?['location']}",
+                                                                    "name": " @{body('Parse_JSON')?['image']}",
+                                                                    "requesttime": "@{body('Parse_JSON')?['requesttime']}",
+                                                                    "status": "@{body('Send_approval_email')?['SelectedOption']}"
+                                                                },
+                                                                "headers": {
+                                                                    "x-ms-documentdb-raw-partitionkey": "\"@{body('Update_request_status')?['id']}\""
+                                                                },
+                                                                "host": {
+                                                                    "connection": {
+                                                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                                                    }
+                                                                },
+                                                                "method": "put",
+                                                                "path": "/dbs/@{encodeURIComponent('statedb')}/colls/@{encodeURIComponent('infrastates')}/docs/@{encodeURIComponent(body('Update_request_status')?['id'])}"
+                                                            },
+                                                            "runAfter": {
+                                                                "Queue_a_new_build": [
+                                                                    "Succeeded"
+                                                                ]
+                                                            },
+                                                            "type": "ApiConnection"
+                                                        }
+                                                    },
+                                                    "case": "0"
+                                                }
+                                            },
+                                            "default": {
+                                                "actions": {
+                                                    "Queue_a_new_build_2": {
+                                                        "inputs": {
+                                                            "host": {
+                                                                "connection": {
+                                                                    "name": "@parameters('$connections')['visualstudioteamservices']['connectionId']"
+                                                                }
+                                                            },
+                                                            "method": "post",
+                                                            "path": "/@{encodeURIComponent('caf_app_innovate_showcase')}/_apis/build/builds",
+                                                            "queries": {
+                                                                "account": "contoso1media",
+                                                                "buildDefId": "14"
+                                                            }
+                                                        },
+                                                        "runAfter": {},
+                                                        "type": "ApiConnection"
+                                                    },
+                                                    "Replace_a_document_2": {
+                                                        "inputs": {
+                                                            "body": {
+                                                                "buildnumber": "@{body('Queue_a_new_build_2')?['buildNumber']}",
+                                                                "comment": " @{body('Parse_JSON')?['comment']}",
+                                                                "email": " @{body('Parse_JSON')?['email']}",
+                                                                "id": "@{body('Parse_JSON')?['id']}",
+                                                                "image": " @{body('Parse_JSON')?['image']}",
+                                                                "lifetime": "@{body('Parse_JSON')?['lifetime']}",
+                                                                "location": "@{body('Parse_JSON')?['location']}",
+                                                                "name": " @{body('Parse_JSON')?['image']}",
+                                                                "requesttime": "@{body('Parse_JSON')?['requesttime']}",
+                                                                "status": "@{body('Send_approval_email')?['SelectedOption']}"
+                                                            },
+                                                            "host": {
+                                                                "connection": {
+                                                                    "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                                                }
+                                                            },
+                                                            "method": "put",
+                                                            "path": "/dbs/@{encodeURIComponent('statedb')}/colls/@{encodeURIComponent('infrastates')}/docs/@{encodeURIComponent(body('Update_request_status')?['id'])}"
+                                                        },
+                                                        "runAfter": {
+                                                            "Queue_a_new_build_2": [
+                                                                "Succeeded"
+                                                            ]
+                                                        },
+                                                        "type": "ApiConnection"
+                                                    }
+                                                }
+                                            },
+                                            "expression": "@body('Parse_JSON')?['image']",
+                                            "runAfter": {},
+                                            "type": "Switch"
+                                        }
+                                    },
+                                    "case": "Approve"
+                                },
+                                "Case_-_Rejected": {
+                                    "actions": {
+                                        "Send_an_email_(V2)": {
+                                            "inputs": {
+                                                "body": {
+                                                    "Body": "<p>Hello @{body('Parse_JSON')?['name']},<br>\n<br>\nYour deployment Request has been refused. <br>\n<br>\n<br>\nRegards<br>\nOneMedia Team<br>\n</p>",
+                                                    "Subject": "<p>[ OneMedia Self-Service  ] Refused deployment Request</p>",
+                                                    "To": "@body('Parse_JSON')?['email']"
+                                                },
+                                                "host": {
+                                                    "connection": {
+                                                        "name": "@parameters('$connections')['office365']['connectionId']"
+                                                    }
+                                                },
+                                                "method": "post",
+                                                "path": "/v2/Mail"
+                                            },
+                                            "runAfter": {},
+                                            "type": "ApiConnection"
+                                        }
+                                    },
+                                    "case": "Reject"
+                                }
+                            },
+                            "default": {
+                                "actions": {}
+                            },
+                            "expression": "@body('Send_approval_email')?['SelectedOption']",
+                            "runAfter": {
+                                "Update_request_status": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Switch"
+                        },
+                        "Update_request_status": {
+                            "inputs": {
+                                "body": {
+                                    "comment": " @{body('Parse_JSON')?['comment']}",
+                                    "email": " @{body('Parse_JSON')?['email']}",
+                                    "id": "@{body('Parse_JSON')?['id']}",
+                                    "image": " @{body('Parse_JSON')?['image']}",
+                                    "lifetime": "@{body('Parse_JSON')?['lifetime']}",
+                                    "location": "@{body('Parse_JSON')?['location']}",
+                                    "name": " @{body('Parse_JSON')?['image']}",
+                                    "requesttime": "@{body('Parse_JSON')?['requesttime']}",
+                                    "status": "@{body('Send_approval_email')?['SelectedOption']}"
+                                },
+                                "headers": {
+                                    "x-ms-documentdb-raw-partitionkey": "\"@{body('Create_or_update_request_status')?['id']}\""
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "put",
+                                "path": "/dbs/@{encodeURIComponent('statedb')}/colls/@{encodeURIComponent('infrastates')}/docs/@{encodeURIComponent(body('Create_or_update_request_status')?['id'])}"
+                            },
+                            "runAfter": {
+                                "Send_approval_email": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection"
+                        }
+                    },
+                    "contentVersion": "1.0.0.0",
+                    "outputs": {},
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "manual": {
+                            "inputs": {
+                                "schema": {
+                                    "properties": {
+                                        "comment": {
+                                            "type": "string"
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "image": {
+                                            "type": "string"
+                                        },
+                                        "lifetime": {
+                                            "type": "string"
+                                        },
+                                        "location": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "requesttime": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            },
+                            "kind": "Http",
+                            "type": "Request"
+                        }
+                    }
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "documentdb": {
+                                "connectionId": "[parameters('connections_documentdb_externalid')]",
+                                "connectionName": "documentdb",
+                                "id": "[concat('/subscriptions/', parameters('azure_subscription_id'), '/providers/Microsoft.Web/locations/',parameters('azure_deployment_region'),'/managedApis/documentdb')]"
+                            },
+                            "office365": {
+                                "connectionId": "[parameters('connections_office365_externalid')]",
+                                "connectionName": "office365",
+                                "id":"[concat('/subscriptions/', parameters('azure_subscription_id'), '/providers/Microsoft.Web/locations/',parameters('azure_deployment_region'),'/managedApis/office365')]"
+                            },
+                            "visualstudioteamservices": {
+                                "connectionId": "[parameters('connections_visualstudioteamservices_1_externalid')]",
+                                "connectionName": "visualstudioteamservices-1",
+                                "id": "[concat('/subscriptions/', parameters('azure_subscription_id'), '/providers/Microsoft.Web/locations/', parameters('azure_deployment_region'),'/managedApis/visualstudioteamservices')]"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
