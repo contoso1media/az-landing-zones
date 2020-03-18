@@ -1,0 +1,238 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "azure_subscription_id": {
+            "defaultValue": "9b1b3746-eb27-417d-804c-a00646520a34",
+            "type": "String"
+        },
+        "azure_deployment_region": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "String"
+        },
+        "workflows_ms_onemedia_logicapp_name": {
+            "defaultValue": "ms-onemedia-validate-logicapp",
+            "type": "String"
+        },
+        "connections_documentdb_externalid": {
+            "defaultValue": "/subscriptions/9b1b3746-eb27-417d-804c-a00646520a34/providers/Microsoft.Web/locations/westeurope/managedApis/documentdb",
+            "type": "String"
+        },
+        "connections_office365_externalid": {
+            "defaultValue": "/subscriptions/9b1b3746-eb27-417d-804c-a00646520a34/providers/Microsoft.Web/locations/westeurope/managedApis/office365",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_ms_onemedia_logicapp_name')]",
+            "location": "westeurope",
+            "identity": {
+               "type": "SystemAssigned"
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "actions": {
+                        "For_each": {
+                            "actions": {
+                                "Compose": {
+                                    "inputs": "@items('For_each')",
+                                    "runAfter": {},
+                                    "type": "Compose"
+                                },
+                                "Parse_JSON_2": {
+                                    "inputs": {
+                                        "content": "@outputs('Compose')",
+                                        "schema": {
+                                            "properties": {
+                                                "build_number": {
+                                                    "type": "string"
+                                                },
+                                                "comment": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "image": {
+                                                    "type": "string"
+                                                },
+                                                "lifetime": {
+                                                    "type": "string"
+                                                },
+                                                "location": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "requesttime": {
+                                                    "type": "string"
+                                                },
+                                                "resource_group": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "runAfter": {
+                                        "Compose": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ParseJson"
+                                },
+                                "Send_an_email_(V2)": {
+                                    "inputs": {
+                                        "body": {
+                                            "Body": "<p>Hi @{body('Parse_JSON_2')?['name']},<br>\n<br>\nYour @{body('Parse_JSON_2')?['type']} deployment is now in status \"@{body('Parse_JSON_2')?['status']}\". If successful, the environment can be reached at this server name address: \"@{body('Parse_JSON')?['service_uri']}\". Using SQL Server Authentification.<br>\n<br>\nLogin: gdpadmin<br>\nPassword: gdp-admin@123<br>\n<br>\nFor support please contact onemediasupport@mycorp.com<br>\n</p>",
+                                            "Subject": "<p>[ OneMedia Self-Service ] Your sandbox deployment status</p>",
+                                            "To": "@body('Parse_JSON_2')?['email']"
+                                        },
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['office365']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "path": "/v2/Mail"
+                                    },
+                                    "runAfter": {
+                                        "Parse_JSON_2": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ApiConnection"
+                                }
+                            },
+                            "foreach": "@body('Query_documents_V2')?['Documents']",
+                            "runAfter": {
+                                "Query_documents_V2": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "Parse_JSON": {
+                            "inputs": {
+                                "content": "@triggerBody()",
+                                "schema": {
+                                    "properties": {
+                                        "build_number": {
+                                            "type": "string"
+                                        },
+                                        "resource_group": {
+                                            "type": "string"
+                                        },
+                                        "service_uri": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "ParseJson"
+                        },
+                        "Query_documents_V2": {
+                            "inputs": {
+                                "body": {
+                                    "QueryText": "SELECT * FROM c\nwhere c.buildnumber = '@{body('Parse_JSON')?['build_number']}'"
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['documentdb']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "/v2/dbs/@{encodeURIComponent('statedb')}/colls/@{encodeURIComponent('infrastates')}/query"
+                            },
+                            "runAfter": {
+                                "Parse_JSON": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection"
+                        }
+                    },
+                    "contentVersion": "1.0.0.0",
+                    "outputs": {},
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "manual": {
+                            "inputs": {
+                                "schema": {
+                                    "properties": {
+                                        "build_number": {
+                                            "type": "string"
+                                        },
+                                        "resource_group": {
+                                            "type": "string"
+                                        },
+                                        "service_uri": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            },
+                            "kind": "Http",
+                            "type": "Request"
+                        }
+                    }
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "documentdb": {
+                                "connectionId": "[parameters('connections_documentdb_externalid')]",
+                                "connectionName": "documentdb",
+                                "id": "[concat('/subscriptions/', parameters('azure_subscription_id'), '/providers/Microsoft.Web/locations/',parameters('azure_deployment_region'),'/managedApis/documentdb')]"
+                            },
+                            "office365": {
+                                "connectionId": "[parameters('connections_office365_externalid')]",
+                                "connectionName": "office365",
+                                "id":"[concat('/subscriptions/', parameters('azure_subscription_id'), '/providers/Microsoft.Web/locations/',parameters('azure_deployment_region'),'/managedApis/office365')]"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

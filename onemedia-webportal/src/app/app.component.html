@@ -1,0 +1,15 @@
+<div style="text-align:center">
+  <h1>Contoso OneMedia Self-service Portal</h1>
+</div>
+<div style="float:right; padding-right:50px;">
+  <button mat-button [matMenuTriggerFor]="menu" class="btn"><i class="fa fa-bars"></i></button>
+<mat-menu #menu="">
+  <button mat-menu-item routerLinkActive="active" routerLink="/home"><i class="fa fa-home"></i>&nbsp;&nbsp; Zone Onboarding</button>
+  <button mat-menu-item routerLinkActive="active" routerLink="/infra"><i class="fa fa-address-card-o"></i>&nbsp;&nbsp; Infrastructure Onboarding</button>
+  <button mat-menu-item routerLinkActive="active" routerLink="/env"><i class="fa fa-user-circle"></i>&nbsp;&nbsp; Environment Onboarding </button>
+</mat-menu>
+</div>
+
+<div class="container text-center">
+  <router-outlet></router-outlet>
+</div>

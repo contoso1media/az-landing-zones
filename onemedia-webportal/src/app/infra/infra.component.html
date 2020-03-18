@@ -1,0 +1,72 @@
+<div style="text-align:center">
+
+    <div id="form-main">
+      <div id="form-div">
+        <form class="form" #myform="ngForm" id="subform" (submit)="onSubmit(myform)">
+          <div class="row">
+            <div class="column" style="background-color:#aaa;">
+              <p class="name">
+                <input type="text" class="feedback-input"  name="name" placeholder="Name" id="name" required ngModel>
+              </p>
+              
+              <p class="email">
+                <input type="text" class="feedback-input" id="email" name="email"  placeholder="Email" required ngModel>
+              </p>
+      
+      
+              <p class="text">
+                <textarea class="feedback-input" id="comment" name="comment" placeholder="Comment" required ngModel></textarea>
+              </p>
+            </div>
+            <div class="column" style="background-color:#bbb;">
+              <p class="name">
+                <mat-form-field class="feedback-input">
+                  <mat-select id="selected" name="selected" placeholder="Choose image" required ngModel> 
+                    <mat-option>Not selected</mat-option>
+                    <mat-option value="0">Azure SQL Database</mat-option>
+                    <mat-option value="1">AKS - Azure Kubernetes Services</mat-option>
+                    <!--<mat-option value="1">Text Analytics - Key Phrase Extraction </mat-option>
+                    <mat-option value="2">Text Analytics - Language Detection</mat-option>
+                    <mat-option value="3">Text Analytics - Sentiment Analysis</mat-option> -->
+                  </mat-select>
+                </mat-form-field>
+                <!--<label [hidden]="true">You selected : {{ selected }}</label>-->
+              </p> 
+               
+              <p class="name">
+                <mat-form-field class="feedback-input">
+                  <mat-select  id="location" name="location" placeholder="Choose target region" required ngModel> 
+                    <mat-option>Not selected</mat-option>
+                    <mat-option value="1">EMEA</mat-option>
+                    <mat-option value="2">Americas</mat-option>
+                    <mat-option value="3">APAC</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </p> 
+      
+              <p class="name">
+                <mat-form-field class="feedback-input">
+                  <mat-select id="lifetime" name="lifetime" placeholder="Choose time-to-live" required ngModel> 
+                    <mat-option>Not selected</mat-option>
+                    <mat-option value="1">1 day</mat-option>
+                    <mat-option value="2">3 days</mat-option>
+                    <mat-option value="3">1 week</mat-option>
+                    <mat-option value="4">2 weeks</mat-option>
+                    <mat-option value="5">1 month</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </p> 
+            </div>
+          </div>
+          
+
+          <div class="submit">
+            <input type="submit" value="Submit" id="button-blue"/>
+            <div class="ease"></div>
+          </div>
+        </form>
+      </div>
+      <div>
+      </div>
+  </div>
+  

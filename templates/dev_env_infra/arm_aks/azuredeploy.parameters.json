@@ -1,0 +1,30 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "resourceName": {
+            "value": "OneMediaAKS"
+        },
+        "dnsPrefix": {
+            "value": "OneMediaAKS"
+        },
+        "existingServicePrincipalObjectId": {
+            "value": "5b7814d3-653d-4c6e-a2fa-04a369da612d"
+        },
+        "existingServicePrincipalClientId": {
+            "value": "c496cc6b-290d-4d72-bf71-fbd05e3cb10d"
+        },
+        "existingServicePrincipalClientSecret": {
+            "value": "cbd578f8-9625-4f17-9313-19fb5f6e7113"
+        },
+        "existingVirtualNetworkName": {
+            "value": "caf-vnet"
+        },
+        "existingVirtualNetworkResourceGroup": {
+            "value": "ms-onemedia-rg"
+        },
+        "existingSubnetName": {
+            "value": "aks-subnet"
+        }
+    }
+}
