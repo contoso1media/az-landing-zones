@@ -9,45 +9,31 @@
     "sqlAdministratorLogin": {
 
       "type": "string",
-
+      "defaultValue" : "onemediaadmin",
       "metadata": {
-
         "description": "The administrator username of the SQL Server."
-
       }
-
     },
 
     "sqlAdministratorLoginPassword": {
-
       "type": "securestring",
-
+      "defaultValue" : "onemedia-admin@123",
       "metadata": {
-
         "description": "The administrator password of the SQL Server."
-
       }
-
     },
 
     "transparentDataEncryption": {
 
       "type": "string",
-
+      "defaultValue": "Enabled",
       "allowedValues": [
-
         "Enabled",
-
         "Disabled"
-
       ],
 
-      "defaultValue": "Enabled",
-
       "metadata": {
-
         "description": "Enable or disable Transparent Data Encryption (TDE) for the database."
-
       }
 
     },
@@ -70,15 +56,11 @@
 
   "variables": {
 
-    "sqlServerName": "gdpsandboxsqlserver",
+    "sqlServerName": "onemediasqlserver",
 
-    "databaseName": "gdpsandboxsqldb",
+    "databaseName": "onemediasqldb",
 
-    "databaseEdition": "Basic",
-
-    "databaseCollation": "SQL_Latin1_General_CP1_CI_AS",
-
-    "databaseServiceObjectiveName": "Basic"
+    "databaseCollation": "SQL_Latin1_General_CP1_CI_AS"
 
   },
 
@@ -90,7 +72,7 @@
 
       "type": "Microsoft.Sql/servers",
 
-      "apiVersion": "2014-04-01-preview",
+      "apiVersion": "2015-05-01-preview",
 
       "location": "[parameters('location')]",
 
@@ -119,8 +101,8 @@
           "type": "databases",
 
           "sku": {
-            "name": "P6",
-            "tier": "Premium"
+            "name": "S1",
+            "tier": "Standard"
           },
 
           "kind": "v12.0,user",
@@ -218,15 +200,10 @@
       "type": "string",
 
       "value": "[reference(concat('Microsoft.Sql/servers/', variables('sqlServerName'))).fullyQualifiedDomainName]"
-
     },
-
     "databaseName": {
-
       "type": "string",
-
       "value": "[variables('databaseName')]"
-
     }
 
   }
