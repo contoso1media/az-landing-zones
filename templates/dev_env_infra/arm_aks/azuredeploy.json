@@ -54,12 +54,14 @@
         },
         "existingServicePrincipalClientId": {
             "type": "securestring",
+            "defaultValue":"msi",
             "metadata": {
                 "description": "Client ID (used by cloudprovider)"
             }
         },
         "existingServicePrincipalClientSecret": {
             "type": "securestring",
+            "defaultValue": null,
             "metadata": {
                 "description": "The Service Principal Client Secret."
             }
