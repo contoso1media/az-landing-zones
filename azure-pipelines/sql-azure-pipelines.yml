@@ -5,10 +5,10 @@ variables:
 
   # Agent VM image name
   vmImageName: 'ubuntu-latest'
-  sqldbsgname: 'onemedia-sqldb-rg'
-  sqldblocation: 'westeurope'
+  sqldbsgname: 'onemediasqldb-rg'
+  sqldblocation: 'northeurope'
   subscription : 'melonserviceconn'
-
+  ziprepo: 'tmp'
 
 stages:
 - stage: Build
@@ -27,26 +27,37 @@ stages:
         scriptLocation: inlineScript
         inlineScript: 'az group create --location $(sqldblocation) --name $(sqldbsgname)'
         useGlobalConfig: true
+    
+    - task: AzureResourceManagerTemplateDeployment@3
+      inputs:
+        deploymentScope: 'Resource Group'
+        azureResourceManagerConnection: 'melonserviceconn'
+        action: 'Create Or Update Resource Group'
+        resourceGroupName: '$(sqldbsgname)'
+        location: '$(sqldblocation)'
+        templateLocation: 'Linked artifact'
+        csmFile: 'templates/data_env_infra/arm_sql_database/sqldeploy.json'
+        deploymentMode: 'Incremental'
 
     - task: CopyFiles@2
       displayName: 'Copy Files to: $(Build.ArtifactStagingDirectory)'
       inputs:
         SourceFolder: '$(system.defaultworkingdirectory)'
         Contents: |
-         templates/**  
          scripts/**
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
     - task: PublishBuildArtifacts@1
       displayName: 'Publish Artifact: drop'
+        
 
 - stage: Release
-  displayName: onemedia-sqldb-CI
+  displayName: onemedia-sqldb-CD
   dependsOn: Build
   condition: succeeded('Build')
   jobs:
   - deployment: Dev
-    displayName: Dev
+    displayName: Release
     environment: 'development'
     pool: 
       vmImage: $(vmImageName)
@@ -59,20 +70,13 @@ stages:
             inputs:
               buildType: 'current'
 
-          - task: AzureResourceGroupDeployment@2
-            displayName: 'Deploy SQL Database'
-            inputs:
-              azureSubscription: $(subscription)
-              resourceGroupName: '$(sqldbsgname)'
-              location: '$(sqldblocation)'
-              csmFile: '$(System.DefaultWorkingDirectory)/_onemedia-sqldb-CI/drop/templates/data_env_infra/arm_sql_database/sqldeploy.json'
-              csmParametersFile: '$(System.DefaultWorkingDirectory)/_onemedia-sqldb-CI/drop/templates/data_env_infra/arm_sql_database/sqldeployment.parameters.json'
-
           - task: AzurePowerShell@4
             displayName: 'Call logic app validation : POST'
             inputs:
               azureSubscription: $(subscription)
-              ScriptPath: '$(System.DefaultWorkingDirectory)/_onemedia-sqldb-CI/drop/scripts/SQLcallLogicApp.ps1'
+              scriptType: filePath
+              scriptPath: $(Build.ArtifactStagingDirectory)/scripts/SQLcallLogicApp.ps1
+              azurePowerShellVersion: latestVersion
               
               
 
